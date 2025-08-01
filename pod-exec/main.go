@@ -13,7 +13,22 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+func printHelp() {
+	fmt.Println(`Usage:
+  kubectl pod-exec
+
+This plugin lets you fuzzy-select a namespace and pod, then exec into the pod.`)
+}
+
 func main() {
+	if len(os.Args) > 1 {
+		arg := os.Args[1]
+		if arg == "--help" || arg == "help" || arg == "-h" {
+			printHelp()
+			return
+		}
+	}
+
 	// Load kubeconfig from default location
 	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		clientcmd.NewDefaultClientConfigLoadingRules(),
@@ -89,4 +104,3 @@ func main() {
 		log.Fatalf("Failed to exec into pod: %v", err)
 	}
 }
-
