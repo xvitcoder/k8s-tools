@@ -8,25 +8,33 @@ import (
 	"os/exec"
 
 	"github.com/ktr0731/go-fuzzyfinder"
+	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func printHelp() {
-	fmt.Println(`Usage:
-  kubectl pod-exec
-
-This plugin lets you fuzzy-select a namespace and pod, then exec into the pod.`)
-}
-
 func main() {
-	if len(os.Args) > 1 {
-		arg := os.Args[1]
-		if arg == "--help" || arg == "help" || arg == "-h" {
-			printHelp()
-			return
-		}
+	var grep string
+	var igrep string
+	var rootCmd = &cobra.Command{
+		Use:   "pod-print-env",
+		Short: "Print environment variables from a pod",
+		Run: func(cmd *cobra.Command, args []string) {
+			if grep != "" {
+				fmt.Printf("Filtering with grep: '%s'\n", grep)
+			}
+			if igrep != "" {
+				fmt.Printf("Filtering with igrep: '%s'\n", igrep)
+			}
+		},
+	}
+
+	rootCmd.PersistentFlags().StringVar(&grep, "grep", "", "Filter output by pattern")
+	rootCmd.PersistentFlags().StringVar(&igrep, "igrep", "", "Filter output by pattern case insensitive")
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	// Load kubeconfig from default location
@@ -91,15 +99,22 @@ func main() {
 	}
 	pod := pods[podIdx]
 
-	// Execute shell in pod
-	shell := "/bin/sh"
-	cmd := exec.Command("kubectl", "exec", "-n", namespace, "-it", pod, "--", shell)
-	cmd.Stdin = os.Stdin
+	// Execute env in pod
+	command := "env"
+	if grep != "" {
+		command = "env | grep " + grep
+	}
+
+	if igrep != "" {
+		command = "env | grep -i " + igrep
+	}
+	cmd := exec.Command("kubectl", "exec", "-n", namespace, pod, "--", "sh", "-c", command)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	fmt.Printf("Kubectl Command: %s\n", cmd)
-	fmt.Printf("Executing shell in pod %s/%s...\n", namespace, pod)
+	fmt.Printf("Environment variables in the pod %s/%s:\n", namespace, pod)
+	fmt.Println("-------------------------------------------")
 	err = cmd.Run()
 	if err != nil {
 		log.Fatalf("Failed to exec into pod: %v", err)
